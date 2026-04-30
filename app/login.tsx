@@ -19,7 +19,7 @@ export default function Login() {
 
   const [errors, setErrors] = useState({});
 
-  const handleInputChange = (name, value) => {
+  const handleInputChange = (name: string, value: string) => {
     setFormData((prev) => ({
       ...prev,
       [name]: value,
@@ -34,7 +34,7 @@ export default function Login() {
   };
 
   const validateForm = () => {
-    const newErrors = {};
+    const newErrors: any = {};
 
     if (!formData.username.trim()) {
       newErrors.username = "Username is required";
@@ -51,7 +51,25 @@ export default function Login() {
     const newErrors = validateForm();
 
     if (Object.keys(newErrors).length === 0) {
-      router.push("/dashboard");
+      fetch("http://127.0.0.1:8000/api/accounts/")
+        .then((response) => response.json())
+        .then((data) => {
+          const match = data.find(
+            (acc: any) =>
+              acc.username === formData.username &&
+              acc.password === formData.password
+          );
+
+          if (match) {
+            router.push("/dashboard");
+          } else {
+            setErrors({ general: "Invalid username or password" });
+          }
+        })
+        .catch((error) => {
+          console.error(error);
+          setErrors({ general: "Server error, please try again" });
+        });
     } else {
       setErrors(newErrors);
     }
@@ -88,6 +106,8 @@ export default function Login() {
         <TouchableOpacity style={styles.button} onPress={handleSubmit}>
           <Text style={styles.buttonText}>Login</Text>
         </TouchableOpacity>
+
+        {errors.general && <Text style={styles.error}>{errors.general}</Text>}
       </View>
     </ImageBackground>
   );
