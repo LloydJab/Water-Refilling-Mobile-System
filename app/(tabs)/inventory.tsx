@@ -13,7 +13,7 @@ import {
 import { styles } from "../styles/inventoryStyles";
 
 
-const API_URL = "http://127.0.0.1:8000/api/inventory/"; 
+const API_URL = "http://192.168.254.100:8000/api/inventory/"; 
 
 interface InventoryItem {
   id: string; 

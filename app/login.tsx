@@ -51,7 +51,7 @@ export default function Login() {
     const newErrors = validateForm();
 
     if (Object.keys(newErrors).length === 0) {
-      fetch("http://127.0.0.1:8000/api/accounts/")
+      fetch("http://192.168.254.100:8000/api/accounts/")
         .then((response) => response.json())
         .then((data) => {
           const match = data.find(
