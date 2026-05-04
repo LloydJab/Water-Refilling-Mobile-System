@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Drawer } from 'expo-router/drawer';
 import { LogOut } from 'lucide-react-native';
 import { Text, TouchableOpacity, View } from 'react-native';
@@ -8,7 +8,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 const DrawerLogout = () => {
   const router = useRouter();
-
   return (
     <View style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: 32, paddingHorizontal: 16 }}>
       <TouchableOpacity
@@ -32,6 +31,9 @@ const DrawerLogout = () => {
 
 export default function DrawerLayout() {
   const colorScheme = useColorScheme();
+  
+  // ✅ CAPTURE TOKEN FROM LOGIN PARAMS
+  const { token } = useLocalSearchParams();
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -51,12 +53,14 @@ export default function DrawerLayout() {
             <View style={{ flex: 1 }}>
               {props.state.routes.map((route, index) => {
                 const focused = props.state.index === index;
-                const label =
-                  props.descriptors[route.key].options.drawerLabel ?? route.name;
+                const label = props.descriptors[route.key].options.drawerLabel ?? route.name;
                 return (
                   <TouchableOpacity
                     key={route.key}
-                    onPress={() => props.navigation.navigate(route.name)}
+                    onPress={() => {
+                      // ✅ PASS TOKEN TO THE NEXT SCREEN MANUALLY
+                      props.navigation.navigate(route.name, { token: token });
+                    }}
                     style={{
                       flexDirection: 'row',
                       alignItems: 'center',
@@ -86,14 +90,17 @@ export default function DrawerLayout() {
         <Drawer.Screen
           name="dashboard"
           options={{ title: 'Dashboard', drawerLabel: 'Dashboard' }}
+          initialParams={{ token: token }} // ✅ INJECT TOKEN ON LOAD
         />
         <Drawer.Screen
           name="inventory"
           options={{ title: 'Inventory', drawerLabel: 'Inventory' }}
+          initialParams={{ token: token }} // ✅ INJECT TOKEN ON LOAD
         />
         <Drawer.Screen
           name="history"
           options={{ title: 'Order History', drawerLabel: 'Order History' }}
+          initialParams={{ token: token }}
         />
       </Drawer>
     </GestureHandlerRootView>

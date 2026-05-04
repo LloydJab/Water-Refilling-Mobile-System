@@ -1,4 +1,5 @@
-import { Package, Pencil, X } from "lucide-react-native";
+import { useLocalSearchParams } from "expo-router";
+import { Pencil } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -12,27 +13,16 @@ import {
 } from "react-native";
 import { styles } from "../styles/inventoryStyles";
 
-
-const API_URL = "http://192.168.254.100:8000/api/inventory/"; 
+const API_URL = "http://172.20.10.3:8000/api/inventory/";
 
 interface InventoryItem {
-  id: string; 
+  id: string;
   name: string;
   stock: number;
 }
 
-const StockBadge = ({ stock }: { stock: number }) => {
-  const color = stock === 0 ? "#ef4444" : stock < 10 ? "#f97316" : "#22c55e";
-  const label = stock === 0 ? "Out of Stock" : stock < 10 ? "Low Stock" : "In Stock";
-  return (
-    <View style={[styles.stockBadge, { backgroundColor: color + "20" }]}>
-      <View style={[styles.stockBadgeDot, { backgroundColor: color }]} />
-      <Text style={[styles.stockBadgeLabel, { color }]}>{label}</Text>
-    </View>
-  );
-};
-
 export default function Inventory() {
+  const { token } = useLocalSearchParams();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editItem, setEditItem] = useState<InventoryItem | null>(null);
@@ -40,171 +30,168 @@ export default function Inventory() {
   const [dbRecordId, setDbRecordId] = useState<number | null>(null);
 
   useEffect(() => {
-    fetchInventory();
-  }, []);
+    if (token) fetchInventory();
+  }, [token]);
 
   const fetchInventory = async () => {
     try {
-      const response = await fetch(API_URL);
+      const response = await fetch(API_URL, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) throw new Error(`Status: ${response.status}`);
+
       const data = await response.json();
       const record = Array.isArray(data) ? data[0] : data;
 
       if (record) {
-        setDbRecordId(record.id); 
-        const mappedItems: InventoryItem[] = [
-          { id: "umbrella_cap", name: "Umbrella Cap", stock: record.umbrella_cap },
-          { id: "gallon", name: "Gallon", stock: record.gallon },
-          { id: "gallon_cap", name: "Gallon Cap", stock: record.gallon_cap },
-          { id: "cap_sticker", name: "Cap Sticker", stock: record.cap_sticker },
-          { id: "rock_salt", name: "Rock Salt", stock: record.rock_salt },
-        ];
-        setItems(mappedItems);
+        setDbRecordId(record.id);
+        setItems([
+          { id: "product_1", name: "Umbrella Cap", stock: record.product_1 || 0 },
+          { id: "product_2", name: "Gallon", stock: record.product_2 || 0 },
+          { id: "product_3", name: "Gallon Cap", stock: record.product_3 || 0 },
+          { id: "product_4", name: "Cap Sticker", stock: record.product_4 || 0 },
+          { id: "product_5", name: "Rock Salt", stock: record.product_5 || 0 },
+          
+        ]);
       }
     } catch (error) {
-      console.error("Fetch Error:", error);
-      Alert.alert("Connection Error", "Could not load data from Django.");
+      console.error("Inventory Fetch Error:", error);
+      Alert.alert("Connection Error", "Ensure server is at 172.20.10.3 and you are logged in.");
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleUpdateStock = async () => {
-    if (!editItem || dbRecordId === null) {
-        return Alert.alert("Error", "No record ID found to update.");
-    }
-
-    const updatedQuantity = parseInt(newVal);
-    if (isNaN(updatedQuantity) || updatedQuantity < 0) {
-      return Alert.alert("Invalid Input", "Please enter a valid number.");
-    }
-
-    const updateUrl = `${API_URL}${dbRecordId}/`;
-
+    if (!editItem || dbRecordId === null) return;
     try {
-      console.log(`Attempting PATCH to: ${updateUrl}`);
-      
-      const response = await fetch(updateUrl, {
+      const response = await fetch(`${API_URL}${dbRecordId}/`, {
         method: "PATCH",
         headers: {
-          "Accept": "application/json",
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ [editItem.id]: updatedQuantity }),
+        body: JSON.stringify({ [editItem.id]: parseInt(newVal) }),
       });
 
-      const result = await response.json();
-
       if (response.ok) {
-        await fetchInventory(); 
+        await fetchInventory();
         setEditItem(null);
-      } else {
-        console.error("Server Rejected Update:", result);
-        Alert.alert("Update Failed", JSON.stringify(result));
       }
     } catch (error) {
-      console.error("Network Error:", error);
-      Alert.alert("Network Error", "Check if your Django server is running and accessible.");
+      Alert.alert("Update Error", "Check server connection.");
     }
   };
 
-  const lowStockCount = items.filter((i) => i.stock < 10 && i.stock > 0).length;
-  const outOfStockCount = items.filter((i) => i.stock === 0).length;
+  // Calculations for the Summary Cards shown in the image
+  const totalStock = items.reduce((acc, curr) => acc + curr.stock, 0);
+  const lowStockCount = items.filter(i => i.stock > 0 && i.stock < 10).length;
+  const outOfStockCount = items.filter(i => i.stock === 0).length;
 
-  if (isLoading) {
-    return (
-      <View style={[styles.container, { justifyContent: "center" }]}>
-        <ActivityIndicator size="large" color="#1e40af" />
-      </View>
-    );
-  }
+  if (isLoading) return <ActivityIndicator size="large" style={{ flex: 1 }} />;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: '#f8f9fa' }]}>
       <ScrollView contentContainerStyle={styles.content}>
         
-        {/* Summary Row */}
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryCard}>
-            <Package size={18} color="#1e40af" />
-            <Text style={styles.summaryValue}>{items.length}</Text>
-            <Text style={styles.summaryLabel}>Total Items</Text>
-          </View>
-          <View style={styles.summaryCard}>
-            <View style={[styles.summaryDot, { backgroundColor: "#f97316" }]} />
-            <Text style={styles.summaryValue}>{lowStockCount}</Text>
-            <Text style={styles.summaryLabel}>Low Stock</Text>
-          </View>
-          <View style={styles.summaryCard}>
-            <View style={[styles.summaryDot, { backgroundColor: "#ef4444" }]} />
-            <Text style={styles.summaryValue}>{outOfStockCount}</Text>
-            <Text style={styles.summaryLabel}>Out of Stock</Text>
-          </View>
+        {/* Summary Cards Section (Matching Image Header) */}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 20 }}>
+          <SummaryCard title="Total Products" value={items.length} color="#6c757d" />
+          <SummaryCard title="Total Stock" value={totalStock} color="#343a40" />
+          <SummaryCard title="Low Stock" value={lowStockCount} color="#ffc107" light />
+          <SummaryCard title="Out of Stock" value={outOfStockCount} color="#dc3545" light />
         </View>
 
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Inventory Levels</Text>
-        </View>
+        <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 15, color: '#333' }}>Inventory Management</Text>
 
         {items.map((item) => (
-          <View key={item.id} style={styles.itemCard}>
-            <View style={styles.itemLeft}>
-              <Text style={styles.itemName}>{item.name}</Text>
-              <StockBadge stock={item.stock} />
-            </View>
-            <View style={styles.itemRight}>
-              <Text style={styles.stockCount}>{item.stock}</Text>
-              <Text style={styles.stockUnit}>units</Text>
-            </View>
-            <View style={styles.itemActions}>
-              <TouchableOpacity 
-                style={styles.actionBtn} 
-                onPress={() => {
-                  setEditItem(item);
-                  setNewVal(String(item.stock));
-                }}
-              >
-                <Pencil size={15} color="#6b7280" />
-              </TouchableOpacity>
+          <View key={item.id} style={[styles.itemCard, { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#eee', backgroundColor: '#fff', borderRadius: 8, marginBottom: 10, paddingHorizontal: 15 }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: '#333' }}>{item.name}</Text>
+                
+                {/* Status Badge (Matching "In Stock" in image) */}
+                <View style={{
+                  flexDirection: 'row', 
+                  alignItems: 'center', 
+                  backgroundColor: item.stock === 0 ? '#f8d7da' : item.stock < 10 ? '#fff3cd' : '#d4edda',
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 15,
+                  alignSelf: 'flex-start',
+                  marginTop: 5
+                }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: item.stock === 0 ? '#dc3545' : item.stock < 10 ? '#ffc107' : '#28a745', marginRight: 6 }} />
+                  <Text style={{ fontSize: 12, color: item.stock === 0 ? '#721c24' : item.stock < 10 ? '#856404' : '#155724', fontWeight: 'bold' }}>
+                    {item.stock === 0 ? "Out of Stock" : item.stock < 10 ? "Low Stock" : "In Stock"}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: '#212529' }}>{item.stock}</Text>
+                <TouchableOpacity 
+                  onPress={() => { setEditItem(item); setNewVal(String(item.stock)); }}
+                  style={{ marginTop: 5, padding: 5 }}
+                >
+                  <Pencil size={18} color="#007bff" />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         ))}
-        <View style={{ height: 80 }} />
       </ScrollView>
 
       {/* Edit Modal */}
-      <Modal visible={!!editItem} transparent animationType="slide">
+      <Modal visible={!!editItem} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Update Quantity</Text>
-              <TouchableOpacity onPress={() => setEditItem(null)}>
-                <X size={20} color="#888" />
-              </TouchableOpacity>
-            </View>
-            
-            <Text style={styles.label}>Item: {editItem?.name}</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="numeric"
-              value={newVal}
-              onChangeText={setNewVal}
-              autoFocus
+            <Text style={styles.modalTitle}>Update {editItem?.name}</Text>
+            <TextInput 
+              style={styles.input} 
+              keyboardType="numeric" 
+              value={newVal} 
+              onChangeText={setNewVal} 
+              autoFocus 
             />
-
             <View style={styles.modalButtons}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditItem(null)}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.confirmBtn} 
-                onPress={handleUpdateStock}
-              >
-                <Text style={styles.confirmBtnText}>Save Changes</Text>
+              <TouchableOpacity style={styles.confirmBtn} onPress={handleUpdateStock}>
+                <Text style={styles.confirmBtnText}>Save</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
+    </View>
+  );
+}
+
+// Helper Component for the Header Cards
+function SummaryCard({ title, value, color, light }: { title: string, value: number, color: string, light?: boolean }) {
+  return (
+    <View style={{
+      width: '48%',
+      backgroundColor: '#fff',
+      padding: 15,
+      borderRadius: 10,
+      marginBottom: 10,
+      elevation: 2,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      borderTopWidth: 4,
+      borderTopColor: color
+    }}>
+      <Text style={{ fontSize: 12, color: '#666', textAlign: 'center', marginBottom: 5 }}>{title}</Text>
+      <Text style={{ fontSize: 20, fontWeight: '800', textAlign: 'center', color: color }}>{value}</Text>
     </View>
   );
 }

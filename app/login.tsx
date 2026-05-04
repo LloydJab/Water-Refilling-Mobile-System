@@ -19,59 +19,43 @@ export default function Login() {
 
   const [errors, setErrors] = useState({});
 
-  const handleInputChange = (name: string, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-
+  const handleInputChange = (name, value) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: "",
-      }));
+      setErrors((prev) => ({ ...prev, [name]: "" }));
     }
   };
 
-  const validateForm = () => {
-    const newErrors: any = {};
-
-    if (!formData.username.trim()) {
-      newErrors.username = "Username is required";
+  const handleSubmit = async () => {
+    if (!formData.username || !formData.password) {
+      setErrors({ general: "All fields are required" });
+      return;
     }
 
-    if (!formData.password.trim()) {
-      newErrors.password = "Password is required";
-    }
+    try {
+      const response = await fetch("http://172.20.10.3:8000/api/token/", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: formData.username,
+          password: formData.password
+        }),
+      });
 
-    return newErrors;
-  };
-
-  const handleSubmit = () => {
-    const newErrors = validateForm();
-
-    if (Object.keys(newErrors).length === 0) {
-      fetch("http://192.168.254.100:8000/api/accounts/")
-        .then((response) => response.json())
-        .then((data) => {
-          const match = data.find(
-            (acc: any) =>
-              acc.username === formData.username &&
-              acc.password === formData.password
-          );
-
-          if (match) {
-            router.push("/dashboard");
-          } else {
-            setErrors({ general: "Invalid username or password" });
-          }
-        })
-        .catch((error) => {
-          console.error(error);
-          setErrors({ general: "Server error, please try again" });
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Passing the token via router params (similar to web auth flow)
+        router.push({
+          pathname: "/dashboard",
+          params: { token: data.access } 
         });
-    } else {
-      setErrors(newErrors);
+      } else {
+        const errorData = await response.json();
+        setErrors({ general: errorData.detail || "Invalid credentials" });
+      }
+    } catch (error) {
+      setErrors({ general: "Network error. Check server IP." });
     }
   };
 
@@ -83,30 +67,22 @@ export default function Login() {
     >
       <View style={styles.loginBox}>
         <Text style={styles.title}>User Login</Text>
-
         <TextInput
-          placeholder="Enter username"
+          placeholder="Username"
           style={styles.input}
-          placeholderTextColor={"black"}
-          value={formData.username}
-          onChangeText={(value) => handleInputChange("username", value)}
+          placeholderTextColor="black"
+          onChangeText={(v) => handleInputChange("username", v)}
         />
-        {errors.username && <Text style={styles.error}>{errors.username}</Text>}
-
         <TextInput
-          placeholder="Enter password"
+          placeholder="Password"
           style={styles.input}
-          placeholderTextColor={"black"}
+          placeholderTextColor="black"
           secureTextEntry
-          value={formData.password}
-          onChangeText={(value) => handleInputChange("password", value)}
+          onChangeText={(v) => handleInputChange("password", v)}
         />
-        {errors.password && <Text style={styles.error}>{errors.password}</Text>}
-
         <TouchableOpacity style={styles.button} onPress={handleSubmit}>
           <Text style={styles.buttonText}>Login</Text>
         </TouchableOpacity>
-
         {errors.general && <Text style={styles.error}>{errors.general}</Text>}
       </View>
     </ImageBackground>
